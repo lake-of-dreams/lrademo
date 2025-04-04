@@ -36,18 +36,3 @@ helm upgrade --install sampleappslra --namespace otmm ${SCRIPT_DIR}/microtx-samp
 
 # Run a pod to access microservices
 kubectl run mycurlpod --image=badouralix/curl-jq -i --tty -- sh
-
-curl http://hotel.otmm.svc.cluster.local:8082/hotelService/api/hotel
-curl http://flight.otmm.svc.cluster.local:8083/flightService/api/flight
-curl http://trip-manager.otmm.svc.cluster.local:8081/trip-service/api/trip
-
-id=$(echo $(
-    curl -s -X POST -d '' http://trip-manager.otmm.svc.cluster.local:8081/trip-service/api/trip?hotelName=Alpha &
-    flightNumber=BA123
-) | jq -r .id)
-decodedId=$(echo ${id} | base64 -d)
-
-curl http://flight.otmm.svc.cluster.local:8083/flightService/api/flight
-curl http://hotel.otmm.svc.cluster.local:8082/hotelService/api/hotel
-
-curl --location --request PUT -H "Long-Running-Action: $decodedId" -d '' http://trip-manager.otmm.svc.cluster.local:8081/trip-service/api/trip/$id
