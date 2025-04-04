@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: otmm
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otmm-tcs
+  namespace: otmm
+  labels:
+    account: otmm-tcs
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tcs-config
+  namespace: otmm
+data:
+  LOGGING_LEVEL: info
+  HTTP_TRACE_ENABLED: "true"
+  STORAGE_TYPE: memory
+  ID: TCS01
+  INTERNAL_ADDR: http://otmm-tcs:9000
+  EXTERNAL_ADDR: http://otmm-tcs.otmm.svc.cluster.local:9000
+  STORAGE_ETCD_ENDPOINTS: ""
+  STORAGE_ETCD_SKIP_HOSTNAME_VERIFICATION: "false"
+  XA_COORDINATOR_ENABLED: "true"
+  XA_COORDINATOR_TX_MAX_TIMEOUT: "600000"
+  LRA_COORDINATOR_ENABLED: "true"
+  TCC_COORDINATOR_ENABLED: "true"
+  LISTEN_ADDR: "0.0.0.0:9000"
+  NARAYANA_LRA_COMPATIBILITY_MODE: "false"
+  AUTHORIZATION_ENABLED: "false"
+  TRANSACTION_TOKEN_ENABLED: "false"
+  AUTHORIZATION_TOKEN_PROPAGATION_ENABLED: "false"
+  ENCRYPTION_SECRET_KEYS: "{\"secretKeys\":[{\"secretKeyName\":\"encryption-secret-key\",\"version\":\"1\"}]}"
+  ENCRYPTION_SECRET_KEY_VERSION: "1"
+  IDENTITY_PROVIDER_NAME: ""
+  IDENTITY_PROVIDER_URL: ""
+  IDENTITY_PROVIDER_CLIENT_ID: ""
+  MAX_RETRY_COUNT: "10"
+  MIN_RETRY_INTERVAL: "1000"
+  MAX_RETRY_INTERVAL: "10000"
+  COMPLETED_TX_TTL: "60"
+
+  APPLICATION_NAMESPACE: ""
+  REQUEST_WITH_NO_JWT: "ALLOW"
+  ISTIO_INGRESS_GATEWAY: "ingressgateway"
+  ISTIO_SYSTEM_NAMESPACE: ""
+  PORT: "9000"
+  TMM_APPNAME: "otmm-tcs"
+  TMM_IMAGE: "container-registry.oracle.com/database/otmm:latest"
+  TMM_IMAGE_PULLPOLICY: "IfNotPresent"
+  TMM_REPLICA_COUNT: "1"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: otmm-tcs
+  namespace: otmm
+  labels:
+    app.kubernetes.io/name: otmm-tcs
+    version: v1
+spec:
+  serviceName: otmm-tcs
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otmm-tcs
+      version: v1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otmm-tcs
+        version: v1
+    spec:
+      serviceAccountName: otmm-tcs
+      containers:
+        - name: otmm-tcs
+          image: "container-registry.oracle.com/database/otmm:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9000
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "250m"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config
+          env:
+            - name: GIN_MODE
+              value: release
+            - name: CONFIG_MAP_PATH
+              value: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: tcs-config
+      securityContext:
+        runAsUser: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otmm-tcs
+  namespace: otmm
+  labels:
+    app.kubernetes.io/name: otmm-tcs
+    service: otmm-tcs
+spec:
+  ports:
+    - port: 9000
+      name: http
+  selector:
+    app.kubernetes.io/name: otmm-tcs
